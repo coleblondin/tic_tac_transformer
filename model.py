@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+from tokens import PAD
+
 
 class LayerNorm(nn.Module):
     def __init__(self, ndim, bias):
@@ -96,6 +98,9 @@ class GPT(nn.Module):
         assert config.block_size is not None
         self.config = config
 
+        self.soft_prompt = nn.Parameter(torch.randn(config.n_embd))
+        self.use_soft_prompt = False
+
         self.transformer = nn.ModuleDict(
             dict(
                 wte=nn.Embedding(config.vocab_size, config.n_embd),
@@ -152,11 +157,23 @@ class GPT(nn.Module):
         assert (
             t <= self.config.block_size
         ), f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
-        pos = torch.arange(0, t, dtype=torch.long, device=device)  # shape (t)
 
-        # forward the GPT model itself
+        
         tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
+
+        if self.use_soft_prompt:
+            prompt = self.soft_prompt.unsqueeze(0).unsqueeze(0).repeat(tok_emb.size(0), 1, 1)
+            print(f"prompt: {prompt.shape}")
+            if t == self.config.block_size:
+                tok_emb = tok_emb = torch.cat((prompt, tok_emb[:, :-1]), 1)
+            else:
+                t += 1
+                tok_emb = tok_emb = torch.cat((prompt, tok_emb), 1)
+
+        
+        pos = torch.arange(0, t, dtype=torch.long, device=device)  # shape (t)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
+        
         x = self.transformer.drop(tok_emb + pos_emb)
         for block in self.transformer.h:
             x = block(x)
