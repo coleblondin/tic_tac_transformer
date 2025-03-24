@@ -5,11 +5,11 @@ from model import GPTConfig, GPT
 
 
 out_dir = "out"
-seed = 1337
+# seed = 1337
 device = "cuda"
 
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
+# torch.manual_seed(seed)
+# torch.cuda.manual_seed(seed)
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 

@@ -58,9 +58,6 @@ if wandb_log:
 X, Y = get_batch()
 t0 = time.time()
 while iter_num < max_iters:
-    if iter_num > 0 and iter_num % save_interval == 0:
-        save_checkpoint(model)
-
     logits, loss = model(X, Y)
 
     loss.backward()
@@ -78,7 +75,10 @@ while iter_num < max_iters:
     dt = t1 - t0
     t0 = t1
     lossf = loss.item()
-    print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
+    
+    if iter_num > 0 and iter_num % save_interval == 0:
+        save_checkpoint(model)
+        print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
 
     if wandb_log:
         wandb.log(

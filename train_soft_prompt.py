@@ -1,12 +1,12 @@
 import os
-import time
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from tokens import PAD
-from setup import init_model, save_checkpoint
-import torch.nn.functional as F
+from setup import save_checkpoint, load_from_checkpoint
+from board_ops import batch_detect_illegal_moves
 
 save_interval = 1000
 
@@ -15,8 +15,8 @@ wandb_project = "ttt"
 
 batch_size = 2048
 
-learning_rate = 6e-4
-max_iters = 600000
+learning_rate = 0.1
+max_iters = 10000
 
 device = "cuda"
 
@@ -34,17 +34,30 @@ def get_batch():
     )
     return x, y
 
-def calculate_reward(token_ids):
-    print(token_ids)
-    print(token_ids.shape)
-    return
+def calculate_loss(games, log_probs):
+    batch_inds = torch.arange(log_probs.size(0))
+    move_ind = 2
+    probs = log_probs.exp()
+    moves = torch.multinomial(probs[:, move_ind], 1).flatten()
+    move_log_probs = log_probs[batch_inds, move_ind, moves]
+    
+    # loss = ((8 - moves) * move_log_probs).sum() * -1
+    # loss = (moves * move_log_probs).sum() * -1
+    loss = (moves * move_log_probs).sum()
+
+    average_move = moves.sum() / moves.size(0)
+    move_counts = torch.bincount(moves)
+    return loss, average_move, move_counts
 
 
-model = init_model()
+model = load_from_checkpoint()
 model.to(device)
 model.train()
 model.zero_grad()
-model.use_soft_prompt = True
+model.use_prompt = True
+
+model.soft_prompt = torch.nn.Parameter(torch.randn(model.config.n_embd).to(device))
+print(model.soft_prompt.sum())
 
 for module in model.modules():
     module.requires_grad = False
@@ -56,35 +69,25 @@ if wandb_log:
 
     wandb.init(project=wandb_project)
 
-X, Y = get_batch()
-t0 = time.time()
 iter_num = 0
 while iter_num < max_iters:
-    if iter_num > 0 and iter_num % save_interval == 0:
-        save_checkpoint(model)
+    X, _ = get_batch()
 
-    logits, _ = model(X, Y)
-
-    log_probs = F.log_softmax(logits[:, -1], dim=-1)
-    probs = log_probs.exp()
-    token_ids = torch.multinomial(probs, 1)
-
-    reward = calculate_reward(token_ids)
-    break
+    logits, _ = model(X)
+    log_probs = F.log_softmax(logits, dim=-1)
+    loss, average_move, move_counts = calculate_loss(X, log_probs)
 
     loss.backward()
-
-    X, Y = get_batch()
-
-
     optimizer.step()
-
     optimizer.zero_grad(set_to_none=True)
 
-    t1 = time.time()
-    dt = t1 - t0
-    t0 = t1
     lossf = loss.item()
+
+    if iter_num > 0 and iter_num % save_interval == 0:
+        save_checkpoint(model)
+        
+    if iter_num % 50 == 0:
+        print(f"iter {iter_num}:\nloss {lossf:.4f}\naverage: {average_move}\ncounts: {move_counts}\nsanity: {model.soft_prompt.sum()}\n")
 
     if wandb_log:
         wandb.log(
