@@ -25,11 +25,26 @@ def check_winner(board):
             if all(board[i, :] == player) or all(board[:, i] == player):
                 return player
         if all(np.diag(board) == player) or all(np.diag(np.fliplr(board)) == player):
+        # if all(torch.diag(board) == player) or all(torch.diag(torch.fliplr(board)) == player):
             return player
     return None
 
 
 def optimal_moves(board, player):
+    wins_or_blocks = win_or_block_moves(board, player)
+    if wins_or_blocks:
+        return wins_or_blocks
+
+    # Center move
+    if board[1][1] == 0:
+        return [(1, 1)]
+
+    # Corner moves
+    corners = [(0, 0), (0, 2), (2, 0), (2, 2)]
+    return [corner for corner in corners if board[corner[0]][corner[1]] == 0]
+
+
+def win_or_block_moves(board, player):
     # Winning moves
     moves = winning_moves(board, player)
     if moves:
@@ -40,13 +55,8 @@ def optimal_moves(board, player):
     if moves:
         return moves
 
-    # Center move
-    if board[1][1] == 0:
-        return [(1, 1)]
-
-    # Corner moves
-    corners = [(0, 0), (0, 2), (2, 0), (2, 2)]
-    return [corner for corner in corners if board[corner[0]][corner[1]] == 0]
+    return None
+    
 
 
 def get_valid_moves(board):
@@ -161,12 +171,22 @@ def batch_seq_to_board(batch_seq, pad_token=PAD):
 
     return batch_board.view(batch_size, 3, 3)
 
-
-def batch_next_valid_move_from_seq(batch_seq):
+def batch_legal_moves_from_seq(batch_seq):
     all_moves = torch.arange(9, device=batch_seq.device)
-    available_moves = [set(all_moves.tolist()) - set(seq.tolist()) for seq in batch_seq]
+    return [set(all_moves.tolist()) - set(seq.tolist()) for seq in batch_seq]
+    
+def batch_next_valid_move_from_seq(batch_seq):
+    available_moves = batch_legal_moves_from_seq(batch_seq)
     next_moves = [
         list(moves)[torch.randint(0, len(moves), (1,)).item()] if moves else -1
         for moves in available_moves
     ]
     return torch.tensor(next_moves, device=batch_seq.device)
+
+def board_move_to_seq_move(board_move):
+    return (board_move[0] * 3) + (board_move[1] * 1)
+
+def seq_move_to_board_move(seq_move):
+    row = seq_move // 3
+    col = seq_move - (row * 3)
+    return (row, col)

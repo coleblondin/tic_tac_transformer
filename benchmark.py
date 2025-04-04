@@ -10,6 +10,11 @@ model = load_from_checkpoint()
 model.eval()
 model.to(device)
 
+model.soft_prompt = torch.nn.Parameter(model.transformer.wte(torch.tensor(9).to(device)))
+model.use_prompt = True
+
+print(f"Using soft prompt: {model.use_prompt}")
+
 with torch.no_grad():
     counts = {"player_2": 0, "player_1": 0, "draw": 0, "invalid": 0}
     for _ in range(1000):
@@ -36,6 +41,8 @@ with torch.no_grad():
             board[i][j] = player
             player *= -1
             winner = check_winner(board)
+
+        print(f"{len(moves)=}")
 
         if winner == 1:
             counts["player_1"] += 1

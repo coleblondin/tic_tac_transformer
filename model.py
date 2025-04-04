@@ -83,9 +83,9 @@ class Block(nn.Module):
 @dataclass
 class GPTConfig:
     block_size: int = 10
-    vocab_size: int = 14
+    vocab_size: int = 11
     n_layer: int = 1
-    n_head: int = 1
+    n_head: int = 4
     n_embd: int = 12
     dropout: float = 0.0
     bias: bool = False
@@ -163,12 +163,16 @@ class GPT(nn.Module):
         
         if self.use_prompt:
             prompt = self.soft_prompt.unsqueeze(0).unsqueeze(0).repeat(tok_emb.size(0), 1, 1)
-            if t == self.config.block_size:
-                # tok_emb = tok_emb = torch.cat((prompt, tok_emb[:, :-1]), 1)
-                tok_emb = tok_emb = torch.cat((prompt, tok_emb[:, 1:]), 1)
-            else:
-                t += 1
-                tok_emb = tok_emb = torch.cat((prompt, tok_emb), 1)
+
+            # tok_emb = torch.cat((prompt, tok_emb[:, :-1]), 1)
+            tok_emb = torch.cat((prompt, tok_emb[:, 1:]), 1)
+            
+            # if t == self.config.block_size:
+            #     # tok_emb = torch.cat((prompt, tok_emb[:, :-1]), 1)
+            #     tok_emb = torch.cat((prompt, tok_emb[:, 1:]), 1)
+            # else:
+            #     t += 1
+            #     tok_emb = torch.cat((prompt, tok_emb), 1)
 
         
         pos = torch.arange(0, t, dtype=torch.long, device=device)  # shape (t)
