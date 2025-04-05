@@ -1,5 +1,4 @@
 import os
-import time
 from enum import Enum
 
 import numpy as np
@@ -17,9 +16,13 @@ wandb_project = "ttt"
 
 max_iters = 10000
 
-batch_size = 2048
-learning_rate = 0.015
-entropy_coef = 0.8
+# batch_size = 2048
+# learning_rate = 0.015
+# entropy_coef = 0.8
+
+batch_size = 256
+learning_rate = 0.01
+entropy_coef = 0.2
 
 class MoveValue(Enum):
     OPTIMAL = 0
@@ -92,18 +95,16 @@ while iter_num < max_iters:
     move_counts = [0] * 11
 
     player = -1
-    for i in range(1, batch_seq.size(1) - 1):
+    for i in range(1, batch_seq.size(1)-1):
         batch_subseq = batch_seq[:, :i]
         batch_boards = batch_seq_to_board(batch_subseq)
         winners = batch_check_winner(batch_boards.cpu())
         legal_moves = batch_legal_moves_from_seq(batch_subseq)
-        played_moves, entropy = batch_sample_moves_for_seq_pos(log_probs, i, temperature=1.0)
+        played_moves, entropy = batch_sample_moves_for_seq_pos(log_probs, i-1, temperature=1.0, k=None)
 
         total_entropy += entropy.sum()
 
-        for j in range(batch_seq.size(0)):
-            t0 = time.time()
-            
+        for j in range(batch_seq.size(0)):            
             if winners[j] != 0:
                 ignored_count += 1
                 continue
@@ -117,6 +118,7 @@ while iter_num < max_iters:
                 # print(f"Illegal seq pos: {i}")
                 # print(batch_boards[j])
                 # print(move)
+                # print(log_probs[j][i].exp())
                 # print(batch_subseq[j])
                 # print(batch_seq[j])
                 # print("\n")
@@ -125,7 +127,8 @@ while iter_num < max_iters:
                 move_counts[move.item()] += 1
 
             else:
-                best_board_moves = optimal_moves(batch_boards[j].cpu(), player)
+                # best_board_moves = optimal_moves(batch_boards[j].cpu(), player)
+                best_board_moves = win_or_block_moves(batch_boards[j].cpu(), player)
                 if best_board_moves is not None and seq_move_to_board_move(move) not in best_board_moves:
                     loss += (log_probs[j][i][move] * MoveValue.SUBOPTIMAL.value - (entropy[j] * entropy_coef))
                     suboptimal_count += 1
@@ -136,7 +139,7 @@ while iter_num < max_iters:
 
     # print(f"{pos_counts=}")
     # print(f"{move_counts=}")
-    # print(f"({sum(pos_counts)=}")
+    # print(f"{sum(pos_counts)=}")
     # print("\n")
     # print("\n")
 

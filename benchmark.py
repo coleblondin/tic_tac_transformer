@@ -42,8 +42,6 @@ with torch.no_grad():
             player *= -1
             winner = check_winner(board)
 
-        print(f"{len(moves)=}")
-
         if winner == 1:
             counts["player_1"] += 1
         elif winner == -1:
