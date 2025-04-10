@@ -20,8 +20,8 @@ max_iters = 10000
 # learning_rate = 0.015
 # entropy_coef = 0.8
 
-batch_size = 256
-learning_rate = 0.01
+batch_size = 2048
+learning_rate = 0.3
 entropy_coef = 0.2
 
 class MoveValue(Enum):
@@ -65,7 +65,7 @@ model.zero_grad()
 model.use_prompt = True
 
 # model.soft_prompt = torch.nn.Parameter(torch.randn(model.config.n_embd).to(device))
-model.soft_prompt = torch.nn.Parameter(model.transformer.wte(torch.tensor(9).to(device)))
+model.soft_prompt = torch.nn.Parameter(model.transformer.wte(torch.tensor(10).to(device)))
 print(f"{model.soft_prompt.sum()=}")
 
 for module in model.modules():
@@ -95,7 +95,7 @@ while iter_num < max_iters:
     move_counts = [0] * 11
 
     player = -1
-    for i in range(1, batch_seq.size(1)-1):
+    for i in range(2, batch_seq.size(1)):
         batch_subseq = batch_seq[:, :i]
         batch_boards = batch_seq_to_board(batch_subseq)
         winners = batch_check_winner(batch_boards.cpu())
@@ -104,12 +104,19 @@ while iter_num < max_iters:
 
         total_entropy += entropy.sum()
 
-        for j in range(batch_seq.size(0)):            
+        for j in range(batch_seq.size(0)):
             if winners[j] != 0:
                 ignored_count += 1
                 continue
 
             move = played_moves[j]
+            move_counts[move.item()] += 1
+
+            for k in range(log_probs.size(-1)):
+                loss += (log_probs[j][i][k] * k * -1)
+            # loss += (log_probs[j][i][move] * (-1 * (move != 3)))
+            continue
+            
 
             if move.item() not in legal_moves[j]:
                 loss += (log_probs[j][i][move] * MoveValue.ILLEGAL.value - (entropy[j] * entropy_coef))
@@ -127,6 +134,8 @@ while iter_num < max_iters:
                 move_counts[move.item()] += 1
 
             else:
+                # loss += (log_probs[j][i][move] * (min(legal_moves[j]) - move) - (entropy[j] * entropy_coef))
+                
                 # best_board_moves = optimal_moves(batch_boards[j].cpu(), player)
                 best_board_moves = win_or_block_moves(batch_boards[j].cpu(), player)
                 if best_board_moves is not None and seq_move_to_board_move(move) not in best_board_moves:
@@ -138,7 +147,7 @@ while iter_num < max_iters:
         player *= -1
 
     # print(f"{pos_counts=}")
-    # print(f"{move_counts=}")
+    print(f"{move_counts=}")
     # print(f"{sum(pos_counts)=}")
     # print("\n")
     # print("\n")

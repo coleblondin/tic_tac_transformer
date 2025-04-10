@@ -11,7 +11,7 @@ model.eval()
 model.to(device)
 
 model.soft_prompt = torch.nn.Parameter(model.transformer.wte(torch.tensor(9).to(device)))
-model.use_prompt = True
+model.use_prompt = False
 
 print(f"Using soft prompt: {model.use_prompt}")
 

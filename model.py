@@ -164,8 +164,8 @@ class GPT(nn.Module):
         if self.use_prompt:
             prompt = self.soft_prompt.unsqueeze(0).unsqueeze(0).repeat(tok_emb.size(0), 1, 1)
 
-            # tok_emb = torch.cat((prompt, tok_emb[:, :-1]), 1)
-            tok_emb = torch.cat((prompt, tok_emb[:, 1:]), 1)
+            tok_emb = torch.cat((prompt, tok_emb[:, :-1]), 1)
+            # tok_emb = torch.cat((prompt, tok_emb[:, 1:]), 1)
             
             # if t == self.config.block_size:
             #     # tok_emb = torch.cat((prompt, tok_emb[:, :-1]), 1)
