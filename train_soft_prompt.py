@@ -16,18 +16,14 @@ wandb_project = "ttt"
 
 max_iters = 10000
 
-# batch_size = 2048
-# learning_rate = 0.015
-# entropy_coef = 0.8
-
 batch_size = 2048
-learning_rate = 0.3
-entropy_coef = 0.2
+learning_rate = 0.01
+entropy_coef = 0
 
 class MoveValue(Enum):
     OPTIMAL = 0
     SUBOPTIMAL = -1
-    ILLEGAL = -2
+    ILLEGAL = -5
     
 
 device = "cuda"
@@ -65,8 +61,9 @@ model.zero_grad()
 model.use_prompt = True
 
 # model.soft_prompt = torch.nn.Parameter(torch.randn(model.config.n_embd).to(device))
-model.soft_prompt = torch.nn.Parameter(model.transformer.wte(torch.tensor(10).to(device)))
+model.soft_prompt = torch.nn.Parameter(model.transformer.wte(torch.tensor(9).to(device)))
 print(f"{model.soft_prompt.sum()=}")
+prompt_offset = 0
 
 for module in model.modules():
     module.requires_grad = False
@@ -83,6 +80,7 @@ while iter_num < max_iters:
     batch_seq, _ = get_batch()    
 
     logits, _ = model(batch_seq)
+    logits = logits[:, prompt_offset:]
     log_probs = F.log_softmax(logits, dim=-1)
 
     loss = 0
@@ -91,11 +89,10 @@ while iter_num < max_iters:
     suboptimal_count = 0
     optimal_count = 0
     total_entropy = 0
-    pos_counts = [0] * 10
     move_counts = [0] * 11
-
+    
     player = -1
-    for i in range(2, batch_seq.size(1)):
+    for i in range(1, batch_seq.size(1) - 1):
         batch_subseq = batch_seq[:, :i]
         batch_boards = batch_seq_to_board(batch_subseq)
         winners = batch_check_winner(batch_boards.cpu())
@@ -112,30 +109,10 @@ while iter_num < max_iters:
             move = played_moves[j]
             move_counts[move.item()] += 1
 
-            for k in range(log_probs.size(-1)):
-                loss += (log_probs[j][i][k] * k * -1)
-            # loss += (log_probs[j][i][move] * (-1 * (move != 3)))
-            continue
-            
-
             if move.item() not in legal_moves[j]:
                 loss += (log_probs[j][i][move] * MoveValue.ILLEGAL.value - (entropy[j] * entropy_coef))
                 illegal_count += 1
-
-                # print(f"Illegal seq pos: {i}")
-                # print(batch_boards[j])
-                # print(move)
-                # print(log_probs[j][i].exp())
-                # print(batch_subseq[j])
-                # print(batch_seq[j])
-                # print("\n")
-                
-                pos_counts[i] += 1
-                move_counts[move.item()] += 1
-
             else:
-                # loss += (log_probs[j][i][move] * (min(legal_moves[j]) - move) - (entropy[j] * entropy_coef))
-                
                 # best_board_moves = optimal_moves(batch_boards[j].cpu(), player)
                 best_board_moves = win_or_block_moves(batch_boards[j].cpu(), player)
                 if best_board_moves is not None and seq_move_to_board_move(move) not in best_board_moves:
@@ -146,14 +123,10 @@ while iter_num < max_iters:
 
         player *= -1
 
-    # print(f"{pos_counts=}")
+    print(sum(move_counts))
     print(f"{move_counts=}")
-    # print(f"{sum(pos_counts)=}")
-    # print("\n")
-    # print("\n")
 
     loss.backward()
-
     
     if iter_num > 0 and iter_num % save_interval == 0:
         save_checkpoint(model)
