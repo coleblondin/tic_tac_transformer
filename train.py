@@ -27,10 +27,13 @@ data_dir = "data"
 train_data = np.load(os.path.join(data_dir, "train.npy")).astype(dtype=np.int64)
 
 
-def get_batch():
+def get_batch(rand_prefix_len=0):
     data = train_data
     ix = torch.randint(data.shape[0], (batch_size,))
     x = torch.from_numpy(data[ix, :])
+    if rand_prefix_len > 0:
+        rand_pref = torch.randint(0, 11, (x.size(0), rand_prefix_len))
+        x = torch.cat((rand_pref, x), dim=-1)
     y = torch.roll(x, shifts=-1, dims=1)
     y[:, -1] = PAD
     x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(

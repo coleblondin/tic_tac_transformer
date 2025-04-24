@@ -10,14 +10,14 @@ model = load_from_checkpoint()
 model.eval()
 model.to(device)
 
-model.soft_prompt = torch.nn.Parameter(model.transformer.wte(torch.tensor(9).to(device)))
 model.use_prompt = False
 
 print(f"Using soft prompt: {model.use_prompt}")
+print(model.soft_prompt.sum())
 
 with torch.no_grad():
     counts = {"player_2": 0, "player_1": 0, "draw": 0, "invalid": 0}
-    for _ in range(1000):
+    for _ in range(10000):
         board = np.zeros((3, 3), dtype=int)
         player = 1
         winner = None
@@ -25,11 +25,11 @@ with torch.no_grad():
         while winner is None and not board_full(board):
             if player == 1:
                 x = torch.tensor(moves, dtype=torch.long, device=device)[None, ...]
-                y = model.generate(x, max_new_tokens=1, temperature=1.0, top_k=3)
+                # y = model.generate(x, max_new_tokens=1, temperature=1.0, top_k=3)
+                y = model.generate(x, max_new_tokens=1, temperature=1.0)
                 y = y[0][-1].item()
 
                 if y not in set(range(9)) or y in moves:
-                    print(f"invalid move: {y} moves: {moves}")
                     winner = None
                     break
 
